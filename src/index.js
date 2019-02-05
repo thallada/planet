@@ -5,10 +5,9 @@ var OrbitControls = require("three-orbit-controls")(THREE);
 const scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-console.time("IcosahedronGeometry");
-var geometry = new THREE.IcosahedronGeometry(10, 6);
-console.log(geometry);
-console.timeEnd("IcosahedronGeometry");
+console.time("init geo");
+var geometry = new THREE.IcosahedronGeometry(10, 8);
+console.timeEnd("init geo");
 
 console.time("Hexsphere");
 var vertToFaces = {};
@@ -55,10 +54,17 @@ for (var i = 0; i < geometry.faces.length; i += 1) {
   faceCentroids[i] = centroid;
 }
 
-console.time("find dual");
+console.time("dual");
 var midVertCache = {};
+var hexCount = 0;
+var pentCount = 0;
 for (var i = 0; i < originalVertCount; i += 1) {
   var faces = vertToFaces[i];
+  if (faces.length === 6) {
+    hexCount += 1;
+  } else if (faces.length === 5) {
+    pentCount += 1;
+  }
   var color = new THREE.Color(Math.random(), Math.random(), Math.random());
   for (var j = 0; j < faces.length; j += 1) {
     var faceIndex = faces[j];
@@ -106,20 +112,25 @@ for (var i = 0; i < originalVertCount; i += 1) {
     );
   }
 }
-console.timeEnd("find dual");
+console.timeEnd("dual");
+console.log(`hexagons: ${hexCount}`);
+console.log(`pentagons: ${pentCount}`);
 
 function disposeArray() {
   this.array = null;
 }
 
+console.time("find geo");
 var newGeometry = new THREE.BufferGeometry();
 newGeometry.addAttribute("position", new THREE.Float32BufferAttribute(newVertices, 3));
 newGeometry.addAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
 // newGeometry.computeFaceNormals();
 // newGeometry.computeVertexNormals();
 // newGeometry.normalize();
+console.timeEnd("find geo");
 
 
+console.time("other render");
 var material = new THREE.MeshBasicMaterial({ vertexColors: THREE.VertexColors, side: THREE.DoubleSide });
 var sphere = new THREE.Mesh(newGeometry, material);
 scene.add(sphere);
@@ -132,6 +143,7 @@ controls.update()
 var renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
 document.body.appendChild( renderer.domElement );
+console.timeEnd("other render");
 console.timeEnd("Hexsphere");
 
 window.addEventListener('resize', onWindowResize, false);
