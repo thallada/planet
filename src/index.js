@@ -5,11 +5,15 @@ var OrbitControls = require("three-orbit-controls")(THREE);
 const scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-var geometry = new THREE.IcosahedronGeometry(10, 2);
+console.time("IcosahedronGeometry");
+var geometry = new THREE.IcosahedronGeometry(10, 6);
+console.log(geometry);
+console.timeEnd("IcosahedronGeometry");
 
+console.time("Hexsphere");
 var vertToFaces = {};
-var newVertices = geometry.vertices;
-var newFaces = [];
+var newVertices = [];
+var colors = [];
 
 for (var i = 0; i < geometry.faces.length; i += 1) {
   var face = geometry.faces[i];
@@ -47,10 +51,12 @@ for (var i = 0; i < geometry.faces.length; i += 1) {
     (vertexA.z + vertexB.z + vertexC.z) / 3,
   );
 
-  var centroidIndex = newVertices.push(centroid) - 1;
-  faceCentroids[i] = centroidIndex;
+  // var centroidIndex = (newVertices.push(centroid.x, centroid.y, centroid.z) / 3) - 1;
+  faceCentroids[i] = centroid;
 }
 
+console.time("find dual");
+var midVertCache = {};
 for (var i = 0; i < originalVertCount; i += 1) {
   var faces = vertToFaces[i];
   var color = new THREE.Color(Math.random(), Math.random(), Math.random());
@@ -59,41 +65,62 @@ for (var i = 0; i < originalVertCount; i += 1) {
     var face = geometry.faces[faceIndex];
     var nonCenterVerts = [face.a, face.b, face.c].filter(vert => vert !== i);
     var sortedFace = new THREE.Face3(i, nonCenterVerts[0], nonCenterVerts[1]);
+    // var sortedFace = face;
 
     var vertexA = geometry.vertices[sortedFace.a];
     var vertexB = geometry.vertices[sortedFace.b];
     var vertexC = geometry.vertices[sortedFace.c];
-    var halfAB = vertexA.clone().lerp(vertexB, 0.5);
-    var halfAC = vertexA.clone().lerp(vertexC, 0.5);
-    var halfBC = vertexB.clone().lerp(vertexC, 0.5);
 
-    // TODO: cache these and retrieve in future iteration (use .toFixed(3) in hash)
-    var centroidIndex = faceCentroids[faceIndex];
-    var halfABIndex = newVertices.push(halfAB) - 1;
-    var halfACIndex = newVertices.push(halfAC) - 1;
-    var halfBCIndex = newVertices.push(halfBC) - 1;
+    var midABKey = sortedFace.a + "," + sortedFace.b
+    var midAB = midVertCache[midABKey];
+    if (!midAB) {
+      midAB = vertexA.clone().lerp(vertexB, 0.5);
+      midVertCache[midABKey] = midAB;
+    }
+    var midACKey = sortedFace.a + "," + sortedFace.c
+    var midAC = midVertCache[midACKey];
+    if (!midAC) {
+      midAC = vertexA.clone().lerp(vertexC, 0.5);
+      midVertCache[midACKey] = midAC;
+    }
+    var centroid = faceCentroids[faceIndex];
 
-    var face1 = new THREE.Face3(sortedFace.a, centroidIndex, halfABIndex);
-    face1.color = color;
-    var face2 = new THREE.Face3(sortedFace.a, centroidIndex, halfACIndex);
-    face2.color = color;
+    newVertices.push(
+      vertexA.x, vertexA.y, vertexA.z,
+      centroid.x, centroid.y, centroid.z,
+      midAB.x, midAB.y, midAB.z,
 
-    newFaces.push(face1, face2);
+      vertexA.x, vertexA.y, vertexA.z,
+      centroid.x, centroid.y, centroid.z,
+      midAC.x, midAC.y, midAC.z,
+    );
+
+    colors.push(
+      color.r, color.g, color.b,
+      color.r, color.g, color.b,
+      color.r, color.g, color.b,
+
+      color.r, color.g, color.b,
+      color.r, color.g, color.b,
+      color.r, color.g, color.b,
+    );
   }
 }
+console.timeEnd("find dual");
 
 function disposeArray() {
   this.array = null;
 }
 
-var newGeometry = new THREE.Geometry();
-newGeometry.vertices = newVertices;
-newGeometry.faces = newFaces;
-newGeometry.computeFaceNormals();
-newGeometry.computeVertexNormals();
-newGeometry.normalize();
+var newGeometry = new THREE.BufferGeometry();
+newGeometry.addAttribute("position", new THREE.Float32BufferAttribute(newVertices, 3));
+newGeometry.addAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+// newGeometry.computeFaceNormals();
+// newGeometry.computeVertexNormals();
+// newGeometry.normalize();
 
-var material = new THREE.MeshBasicMaterial({ vertexColors: THREE.FaceColors, side: THREE.DoubleSide });
+
+var material = new THREE.MeshBasicMaterial({ vertexColors: THREE.VertexColors, side: THREE.DoubleSide });
 var sphere = new THREE.Mesh(newGeometry, material);
 scene.add(sphere);
 
@@ -105,6 +132,7 @@ controls.update()
 var renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
 document.body.appendChild( renderer.domElement );
+console.timeEnd("Hexsphere");
 
 window.addEventListener('resize', onWindowResize, false);
 
