@@ -1,21 +1,21 @@
 import * as THREE from "three";
 
-var OrbitControls = require("three-orbit-controls")(THREE);
+const OrbitControls = require("three-orbit-controls")(THREE);
 
 const scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 console.time("init geo");
-var geometry = new THREE.IcosahedronGeometry(10, 6);
+const geometry = new THREE.IcosahedronGeometry(10, 0);
 console.timeEnd("init geo");
 
 console.time("Hexsphere");
-var vertToFaces = {};
-var newVertices = [];
-var colors = [];
+const vertToFaces = {};
+const newVertices = [];
+const colors = [];
 
-for (var i = 0; i < geometry.faces.length; i += 1) {
-  var face = geometry.faces[i];
+for (let i = 0; i < geometry.faces.length; i += 1) {
+  const face = geometry.faces[i];
 
   if (vertToFaces[face.a]) {
     vertToFaces[face.a].push(i);
@@ -36,69 +36,85 @@ for (var i = 0; i < geometry.faces.length; i += 1) {
   }
 }
 
-var originalVertCount = geometry.vertices.length;
+const originalVertCount = geometry.vertices.length;
 
-var faceCentroids = {};
-for (var i = 0; i < geometry.faces.length; i += 1) {
-  var face = geometry.faces[i];
-  var vertexA = geometry.vertices[face.a];
-  var vertexB = geometry.vertices[face.b];
-  var vertexC = geometry.vertices[face.c];
-  var centroid = new THREE.Vector3(
-    (vertexA.x + vertexB.x + vertexC.x) / 3,
-    (vertexA.y + vertexB.y + vertexC.y) / 3,
-    (vertexA.z + vertexB.z + vertexC.z) / 3,
-  );
+const faceCentroids = {};
+for (let i = 0; i < geometry.faces.length; i += 1) {
+  const face = geometry.faces[i];
+  const vertexA = geometry.vertices[face.a];
+  const vertexB = geometry.vertices[face.b];
+  const vertexC = geometry.vertices[face.c];
+  // var centroid = new THREE.Vector3(
+    // (vertexA.x + vertexB.x + vertexC.x) / 3,
+    // (vertexA.y + vertexB.y + vertexC.y) / 3,
+    // (vertexA.z + vertexB.z + vertexC.z) / 3,
+  // );
+  const vabHalf = vertexB.clone().sub(vertexA).divideScalar(2);
+  const pabHalf = vertexA.clone().add(vabHalf);
+  const centroid = vertexC.clone().sub(pabHalf).multiplyScalar(1/3).add(pabHalf);
 
   // var centroidIndex = (newVertices.push(centroid.x, centroid.y, centroid.z) / 3) - 1;
   faceCentroids[i] = centroid;
 }
 
+const findAdjacentFace = (vertexIndex, faces) => {
+  for (let i = 0; i < faces.length; i += 1) {
+    const faceIndex = faces[i];
+    const face = geometry.faces[faceIndex];
+    if ([face.a, face.b, face.c].includes(vertexIndex)) return faceIndex;
+  }
+}
+
 console.time("dual");
-var midVertCache = {};
-var hexCount = 0;
-var pentCount = 0;
-for (var i = 0; i < originalVertCount; i += 1) {
-  var faces = vertToFaces[i];
+const midVertCache = {};
+let hexCount = 0;
+let pentCount = 0;
+for (let i = 0; i < originalVertCount; i += 1) {
+  const faces = vertToFaces[i];
   if (faces.length === 6) {
     hexCount += 1;
   } else if (faces.length === 5) {
     pentCount += 1;
   }
-  var color = new THREE.Color(Math.random(), Math.random(), Math.random());
-  for (var j = 0; j < faces.length; j += 1) {
-    var faceIndex = faces[j];
-    var face = geometry.faces[faceIndex];
-    var nonCenterVerts = [face.a, face.b, face.c].filter(vert => vert !== i);
-    var sortedFace = new THREE.Face3(i, nonCenterVerts[0], nonCenterVerts[1]);
-    // var sortedFace = face;
+  const color = new THREE.Color(Math.random(), Math.random(), Math.random());
+  for (let j = 0; j < faces.length; j += 1) {
+    const faceIndex = faces[j];
+    const face = geometry.faces[faceIndex];
+    const sortedVerts = [face.a, face.b, face.c].filter(vert => vert !== i);
+    sortedVerts.unshift(i)
 
-    var vertexA = geometry.vertices[sortedFace.a];
-    var vertexB = geometry.vertices[sortedFace.b];
-    var vertexC = geometry.vertices[sortedFace.c];
+    const vertexA = geometry.vertices[sortedVerts[0]];
+    const vertexB = geometry.vertices[sortedVerts[1]];
+    const vertexC = geometry.vertices[sortedVerts[2]];
 
-    var midABKey = sortedFace.a + "," + sortedFace.b
-    var midAB = midVertCache[midABKey];
-    if (!midAB) {
-      midAB = vertexA.clone().lerp(vertexB, 0.5);
-      midVertCache[midABKey] = midAB;
+    const centroid = faceCentroids[faceIndex];
+
+    const adjBFace = findAdjacentFace(sortedVerts[1], faces);
+    const adjBCentroid = faceCentroids[adjBFace];
+    const midBCentroidKey = sortedVerts[1] + ",F" + adjBFace;
+    let midBCentroid = midVertCache[midBCentroidKey];
+    if (!midBCentroid) {
+      midBCentroid = centroid.clone().lerp(adjBCentroid, 0.5);
+      midVertCache[midBCentroidKey] = midBCentroid;
     }
-    var midACKey = sortedFace.a + "," + sortedFace.c
-    var midAC = midVertCache[midACKey];
-    if (!midAC) {
-      midAC = vertexA.clone().lerp(vertexC, 0.5);
-      midVertCache[midACKey] = midAC;
+
+    const adjCFace = findAdjacentFace(sortedVerts[2], faces);
+    const adjCCentroid = faceCentroids[adjCFace];
+    const midCCentroidKey = sortedVerts[2] + ",F" + adjCFace;
+    let midCCentroid = midVertCache[midCCentroidKey];
+    if (!midCCentroid) {
+      midCCentroid = centroid.clone().lerp(adjCCentroid, 0.5);
+      midVertCache[midCCentroidKey] = midCCentroid;
     }
-    var centroid = faceCentroids[faceIndex];
 
     newVertices.push(
       vertexA.x, vertexA.y, vertexA.z,
       centroid.x, centroid.y, centroid.z,
-      midAB.x, midAB.y, midAB.z,
+      midBCentroid.x, midBCentroid.y, midBCentroid.z,
 
       vertexA.x, vertexA.y, vertexA.z,
       centroid.x, centroid.y, centroid.z,
-      midAC.x, midAC.y, midAC.z,
+      midCCentroid.x, midCCentroid.y, midCCentroid.z,
     );
 
     colors.push(
@@ -121,7 +137,7 @@ function disposeArray() {
 }
 
 console.time("find geo");
-var newGeometry = new THREE.BufferGeometry();
+const newGeometry = new THREE.BufferGeometry();
 newGeometry.addAttribute("position", new THREE.Float32BufferAttribute(newVertices, 3));
 newGeometry.addAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
 // newGeometry.computeFaceNormals();
@@ -131,16 +147,16 @@ console.timeEnd("find geo");
 
 
 console.time("other render");
-var material = new THREE.MeshBasicMaterial({ vertexColors: THREE.VertexColors, side: THREE.DoubleSide });
-var sphere = new THREE.Mesh(newGeometry, material);
+const material = new THREE.MeshBasicMaterial({ vertexColors: THREE.VertexColors, side: THREE.DoubleSide });
+const sphere = new THREE.Mesh(newGeometry, material);
 scene.add(sphere);
 
-var controls = new OrbitControls(camera);
+const controls = new OrbitControls(camera);
 
 camera.position.z = 15;
 controls.update()
 
-var renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer();
 renderer.setSize( window.innerWidth, window.innerHeight );
 document.body.appendChild( renderer.domElement );
 console.timeEnd("other render");
