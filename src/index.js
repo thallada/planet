@@ -38,17 +38,21 @@ for (let i = 0; i < geometry.faces.length; i += 1) {
 
 const originalVertCount = geometry.vertices.length;
 
+const calculateCentroid = (pa, pb, pc) => {
+  const vabHalf = pb.clone().sub(pa).divideScalar(2);
+  const pabHalf = pa.clone().add(vabHalf);
+  const centroid = pc.clone().sub(pabHalf).multiplyScalar(1/3).add(pabHalf);
+  return centroid;
+}
+
 const faceCentroids = {};
 for (let i = 0; i < geometry.faces.length; i += 1) {
   const face = geometry.faces[i];
   const vertexA = geometry.vertices[face.a];
   const vertexB = geometry.vertices[face.b];
   const vertexC = geometry.vertices[face.c];
-  const vabHalf = vertexB.clone().sub(vertexA).divideScalar(2);
-  const pabHalf = vertexA.clone().add(vabHalf);
-  const centroid = vertexC.clone().sub(pabHalf).multiplyScalar(1/3).add(pabHalf);
 
-  faceCentroids[i] = centroid;
+  faceCentroids[i] = calculateCentroid(vertexA, vertexB, vertexC);
 }
 
 const findAdjacentFace = (vertexIndex, faces) => {
@@ -68,8 +72,21 @@ const findCenterPoint = faces => {
   return centerPoint;
 }
 
+const midCentroidCache = {};
+const calculateMidCentroid = (vertexIndex, faces, centroid) => {
+  const adjFaceIndex = findAdjacentFace(vertexIndex, faces);
+  const adjCentroid = faceCentroids[adjFaceIndex];
+  const midCentroidKey = vertexIndex + ",F" + adjFaceIndex;
+  let midCentroid = midCentroidCache[midCentroidKey];
+  if (!midCentroid) {
+    midCentroid = centroid.clone().lerp(adjCentroid, 0.5);
+    midCentroidCache[midCentroidKey] = midCentroid;
+  }
+  return midCentroid;
+}
+
+
 console.time("dual");
-const midVertCache = {};
 let hexCount = 0;
 let pentCount = 0;
 for (let i = 0; i < originalVertCount; i += 1) {
@@ -79,8 +96,10 @@ for (let i = 0; i < originalVertCount; i += 1) {
   } else if (faces.length === 5) {
     pentCount += 1;
   }
+
   const color = new THREE.Color(Math.random(), Math.random(), Math.random());
   const centerPoint = findCenterPoint(faces);
+
   for (let j = 0; j < faces.length; j += 1) {
     const faceIndex = faces[j];
     const face = geometry.faces[faceIndex];
@@ -88,24 +107,8 @@ for (let i = 0; i < originalVertCount; i += 1) {
     sortedVerts.unshift(i)
 
     const centroid = faceCentroids[faceIndex];
-
-    const adjBFace = findAdjacentFace(sortedVerts[1], faces);
-    const adjBCentroid = faceCentroids[adjBFace];
-    const midBCentroidKey = sortedVerts[1] + ",F" + adjBFace;
-    let midBCentroid = midVertCache[midBCentroidKey];
-    if (!midBCentroid) {
-      midBCentroid = centroid.clone().lerp(adjBCentroid, 0.5);
-      midVertCache[midBCentroidKey] = midBCentroid;
-    }
-
-    const adjCFace = findAdjacentFace(sortedVerts[2], faces);
-    const adjCCentroid = faceCentroids[adjCFace];
-    const midCCentroidKey = sortedVerts[2] + ",F" + adjCFace;
-    let midCCentroid = midVertCache[midCCentroidKey];
-    if (!midCCentroid) {
-      midCCentroid = centroid.clone().lerp(adjCCentroid, 0.5);
-      midVertCache[midCCentroidKey] = midCCentroid;
-    }
+    const midBCentroid = calculateMidCentroid(sortedVerts[1], faces, centroid);
+    const midCCentroid = calculateMidCentroid(sortedVerts[2], faces, centroid);
 
     newVertices.push(
       centerPoint.x, centerPoint.y, centerPoint.z,
@@ -138,8 +141,8 @@ function disposeArray() {
 
 console.time("find geo");
 const newGeometry = new THREE.BufferGeometry();
-newGeometry.addAttribute("position", new THREE.Float32BufferAttribute(newVertices, 3));
-newGeometry.addAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+newGeometry.addAttribute("position", new THREE.Float32BufferAttribute(newVertices, 3).onUpload(disposeArray));
+newGeometry.addAttribute("color", new THREE.Float32BufferAttribute(colors, 3).onUpload(disposeArray));
 newGeometry.computeFaceNormals();
 newGeometry.computeVertexNormals();
 console.timeEnd("find geo");
