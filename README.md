@@ -1,24 +1,32 @@
-# Hexsphere Generator
+# Hexsphere and Icosahedron Viewer
 
-Eventually, this will be a full-blown planet generator. But, for now, this is a 
-hexsphere generator. This shape is also known as a [Goldberg 
-polyhedron](https://en.wikipedia.org/wiki/Goldberg_polyhedron) or a [truncated 
-icosahedron](https://en.wikipedia.org/wiki/Truncated_icosahedron). It is made 
-from generating a [icosahedron](https://en.wikipedia.org/wiki/Icosahedron) whose 
-sides are split N times (for a detail level of N). Then, I calculate the [dual 
-polyhedron](https://en.wikipedia.org/wiki/Dual_polyhedron) of that shape, which 
-results in the hexsphere. In its smallest form (detail level of 0), it has 12 
-pentagon faces. As the detail level increases, it gains more hexagon faces and 
-becomes more spherical in shape.
+View live at: https://www.hallada.net/planet/
 
-Detail level 0 with 12 pentagons:
+Renders shapes generated from my other project 
+[icosahedron](https://crates.io/crates/icosahedron) ([github 
+repo](https://github.com/thallada/icosahedron)) using 
+[regl.js](https://github.com/regl-project/regl).
 
-![detail 0](img/detail-0.png)
+Since this is hosted on Github, which has a 100 MB file limit. The most detailed 
+shapes available for rendering are the hexsphere at detail level 6 and the 
+icosahedron at detail level 7.
 
-Detail level 1 with 12 pentagons and 30 hexagons (AKA. a soccer ball):
+## Running
 
-![detail 1](img/detail-1.png)
+Checkout and then run:
 
-Detail level 8 with 12 pentagons and 655,350 hexagons:
+```
+npm install
+npm start
+```
 
-![detail 8](img/detail-8.png)
+## Building
+
+Compiles files to the `/docs` folder which is the folder set up for Github pages 
+hosting.
+
+```
+npm run build
+```
+
+Any output needs to be committed for it to appear on Github pages.
